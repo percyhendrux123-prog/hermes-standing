@@ -1,0 +1,67 @@
+name: hermes-standing
+version: "0.1.0"
+description: "Earned trust for Hermes workers: independent proof checks, a local record, and level-based approval gates."
+author: Percy Keith Stewart
+license: MIT
+requires_hermes: ">=0.22.5"
+api_version: 1
+provides_tools: [standing_proof]
+provides_hooks: [pre_tool_call, post_tool_call, pre_llm_call, on_session_finalize, on_session_reset]
+
+config_schema:
+  seed:
+    type: dict
+    default: {}
+    description: "Standing seed: profile-to-level map (L0-L2), used only when the actor row is first created. Never changes existing levels on load. L3 is owner-command only."
+  default_level:
+    type: str
+    default: L1
+    description: "Starting level for unlisted profiles: L0, L1 or L2."
+  levels:
+    type: dict
+    default: {L0: [read], L1: [read, local_write], L2: [read, local_write, shell, send, spin, unknown], L3: ['*']}
+    description: "Allowed categories by level. Omitted levels retain defaults. L3 always leaves other Hermes gates in charge."
+  workspace:
+    type: str
+    default: ""
+    description: "Absolute workspace folder. L1/L2 local file writes must resolve inside it; empty means approval for writes."
+  file_proof_roots:
+    type: list
+    default: []
+    description: "Owner-selected absolute artifact folders or exact files. Empty uses workspace; no workspace refuses files. Credential stores stay forbidden."
+  db_path:
+    type: str
+    default: ""
+    description: "Optional absolute SQLite path shared by governor and workers. Empty retains home-local plugin_db. No automatic ledger merge or migration."
+  http_proof_targets:
+    type: list
+    default: []
+    description: "Owner-selected HTTP(S) URL prefixes; empty refuses HTTP proofs. Same origin and exact query only; trailing slash permits a path subtree, otherwise exact path."
+  promote_after:
+    type: int
+    default: 10
+    description: "Passing checks in a clean window before one automatic level increase."
+  max_auto_level:
+    type: str
+    default: L2
+    description: "Automatic promotion ceiling: L0-L2; only the local owner command sets L3."
+  require_proof_on_complete:
+    type: bool
+    default: true
+    description: "Block kanban_complete until this worker task has a passing proof in this session. Errors fail closed."
+  card_line:
+    type: bool
+    default: true
+    description: "Add a safe Standing comment after successful task completion or a proof demotion. False disables both; storage errors never fail completion."
+  exempt_profiles:
+    type: list
+    default: []
+    description: "Exact profile names exempt from the completion proof check only, not from action gates."
+  command_allowlist:
+    type: list
+    default: []
+    description: "Exact read-only argv lists or command strings approved by the owner. No prefix matching, shell metacharacters, or shell execution."
+  proof_timeout:
+    type: int
+    default: 10
+    description: "HTTP/command check timeout in seconds (1-20). HTTP bodies and command stdout searched up to 2 MiB."
