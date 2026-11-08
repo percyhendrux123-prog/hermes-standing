@@ -3,7 +3,7 @@ import hashlib
 import json
 import logging
 import threading
-from .card_line import receipt_label, write_comment
+from .card_line import receipt_label
 from .config import level, profile
 from .policy import classify, local_write, needs_approval
 
@@ -20,7 +20,8 @@ def fingerprint(value):
 
 
 class Standing:
-    def __init__(self, settings, ledger_factory, runner, actor, task, session, cwd, config_error=False):
+    def __init__(self, settings, ledger_factory, runner, actor, task, session, cwd, config_error=False, *, ctx):
+        self.ctx = ctx
         self.settings = settings
         self.ledger_factory = ledger_factory
         self.runner = runner
@@ -146,7 +147,8 @@ class Standing:
     def _demotion_line(self, actor, task, state):
         try:
             if self.settings.card_line:
-                write_comment(task, f"Standing: {actor} L{state['previous_level']} -> L{state['level']} · a check failed.")
+                body = f"Standing: {actor} L{state['previous_level']} -> L{state['level']} · a check failed."
+                self.ctx.dispatch_tool("kanban_comment", {"task_id": task, "body": body, "board": None})
         except Exception as exc:
             logger.warning('Standing could not add a card line (%s).', type(exc).__name__)
 
@@ -172,7 +174,7 @@ class Standing:
                 # Claim the notification before I/O: even a commit followed by a
                 # close/error must not be retried into a duplicate. Best-effort, no retry.
                 self.card_lines.add(key)
-                write_comment(task, body, board=args.get('board'))
+                self.ctx.dispatch_tool("kanban_comment", {"task_id": task, "body": body, "board": args.get("board")})
         except Exception as exc:
             logger.warning('Standing could not add a card line (%s).', type(exc).__name__)
         return None  # Observation only: never change the completion's result.

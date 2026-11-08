@@ -28,8 +28,13 @@ All three settings appear in `Settings`, registration, `plugin.yaml`, and the RE
 
 - `card_line: true` (strict bool, default true) adds a best-effort `post_tool_call` observer for actual successful `kanban_complete` results. It requires the same actor/task/session passing receipt; errors/failed completion/no receipt produce no success line. The in-memory receipt now stores only kind and safe HTTP host. Current ledger passes-window and lifetime-fail counters are labeled separately, not misleadingly combined into one window.
 - A failing proof that lowers level adds one generic demotion comment when assigned task is known. The old level is returned by `Ledger.proof` inside its transaction; there is no racy pre-proof lookup or ledger schema migration.
-- Both paths use native `kanban_db.add_comment` / `kanban_db_connect.connect`, same connection seam as `kanban_tools._board`. Board args are forwarded, env/current-board/fence resolution belongs to the host. No shell-out or separate store. Comment exceptions are type-only warnings; completion/proof results remain unchanged. One completion attempt is guarded in memory before storage I/O to avoid duplicates after ambiguous committed-write errors.
+- Both paths use public `ctx.dispatch_tool("kanban_comment", {"task_id": task, "body": body, "board": board})`, with the plugin context retained in the service. Core owns author attribution, redaction, approvals and board resolution. Explicit completion boards are forwarded; demotions use the worker's default pinned board. No direct Kanban database access, shell-out or separate store. Dispatch exceptions are type-only warnings; completion/proof results remain unchanged. One completion attempt is guarded in memory before dispatch to avoid duplicates after ambiguous committed-write errors.
 - False disables comments only. Expected text, full URLs/query/port/path, command argv and file paths never enter comments. README now includes `What the owner sees`, approval text, card examples and the persistent-hostname disclosure. Native dispatch/visible-card acceptance remains a host release check, not claimed by stubbed registration tests.
+
+## Conservative automatic promotion (0.1.1)
+
+- `max_auto_level` now defaults to L1 in runtime, registration and manifest. Proofs alone cannot grant L2 action permissions with default settings. The owner can explicitly set an actor to L2 locally or opt into `max_auto_level: L2`; L3 remains local owner-command only.
+- Existing levels and explicit owner settings are preserved, not silently lowered or migrated. The canonical host `get_hermes_home()` helper now selects the file-proof exclusion root, including home overrides that differ from the process environment.
 
 ## Proof fairness
 

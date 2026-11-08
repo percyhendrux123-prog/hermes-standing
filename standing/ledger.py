@@ -8,7 +8,7 @@ def now():
 
 
 class Ledger:
-    def __init__(self, connect, default_level=1, promote_after=10, max_auto_level=2):
+    def __init__(self, connect, default_level=1, promote_after=10, max_auto_level=1):
         self.connect = connect
         self.default_level = default_level
         self.promote_after = promote_after

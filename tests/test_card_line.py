@@ -1,6 +1,5 @@
 """Card visibility through registered hooks; no Hermes install or live board."""
 import json
-import sqlite3
 import sys
 import types
 
@@ -17,34 +16,22 @@ def card(tmp_path, monkeypatch, http_server):
     monkeypatch.setenv('HERMES_KANBAN_TASK', 'task-a')
     monkeypatch.setenv('HERMES_SESSION_ID', 'session-a')
     monkeypatch.setattr(plugin, 'agent_cwd', lambda: tmp_path)
-    comments, connections, boards = [], [], []
-    kb = types.ModuleType('hermes_cli.kanban_db')
-    kbc = types.ModuleType('hermes_cli.kanban_db_connect')
-
-    def connect(*, board=None):
-        boards.append(board)
-        conn = sqlite3.connect(tmp_path / 'board.db')
-        connections.append(conn)
-        return conn
-
-    def add_comment(conn, task_id, author, body):
-        conn.execute('CREATE TABLE IF NOT EXISTS comments (task TEXT, author TEXT, body TEXT)')
-        conn.execute('INSERT INTO comments VALUES (?, ?, ?)', (task_id, author, body))
-        conn.commit()
-        comments.append((task_id, author, body))
-        return len(comments)
-
-    kb.add_comment, kbc.connect = add_comment, connect
-    host = types.ModuleType('hermes_cli')
-    host.kanban_db, host.kanban_db_connect = kb, kbc
-    monkeypatch.setitem(sys.modules, 'hermes_cli', host)
-    monkeypatch.setitem(sys.modules, 'hermes_cli.kanban_db', kb)
-    monkeypatch.setitem(sys.modules, 'hermes_cli.kanban_db_connect', kbc)
+    comments, boards, calls = [], [], []
     ctx = Context(tmp_path, {'seed': {'worker': 'L2'}, 'workspace': str(tmp_path),
                              'http_proof_targets': [url + '/proof?private-query=value']})
+
+    def dispatch(name, arguments):
+        calls.append((name, dict(arguments)))
+        assert name == 'kanban_comment'
+        # Core, not Standing, must choose the author and redact the body.
+        assert set(arguments) == {'task_id', 'body', 'board'}
+        boards.append(arguments['board'])
+        comments.append((arguments['task_id'], arguments['body']))
+        return json.dumps({'ok': True})
+
+    ctx.dispatch_tool = dispatch
     plugin.register(ctx)
-    return types.SimpleNamespace(ctx=ctx, comments=comments, kb=kb, kbc=kbc, boards=boards,
-                                 connections=connections, url=url)
+    return types.SimpleNamespace(ctx=ctx, comments=comments, boards=boards, calls=calls, url=url)
 
 
 def pass_http(card):
@@ -66,13 +53,12 @@ def test_successful_completion_writes_one_score_line_from_receipt_and_ledger(car
     assert card.comments == []  # A passing proof is not a completed task.
     assert complete(card) is None
     complete(card)  # Repeated notification must not duplicate the line.
-    assert card.comments == [('task-a', 'standing',
+    assert card.comments == [('task-a',
         'Standing: worker L2 · check passed (http 127.0.0.1) · '
         '3 passes this window / 0 fails all time.')]
     assert card.boards == [None]  # Let the host resolve its env/current-board pins.
-    with pytest.raises(sqlite3.ProgrammingError):
-        card.connections[0].execute('SELECT 1')  # Explicitly closed, not just committed.
-    line = card.comments[0][2]
+    assert card.calls == [('kanban_comment', {'task_id': 'task-a', 'body': card.comments[0][1], 'board': None})]
+    line = card.comments[0][1]
     for private in ('ready', '/proof', 'private-query', 'value', card.url):
         assert private not in line
 
@@ -88,9 +74,9 @@ def fail_proof(card):
 def test_failed_proof_posts_one_demotion_line_only_when_level_lowers(card, monkeypatch):
     result = fail_proof(card)
     assert result['passed'] is False and result['level'] == 'L1'
-    assert card.comments == [('task-a', 'standing', 'Standing: worker L2 -> L1 · a check failed.')]
+    assert card.comments == [('task-a', 'Standing: worker L2 -> L1 · a check failed.')]
     fail_proof(card)
-    assert card.comments[-1][2] == 'Standing: worker L1 -> L0 · a check failed.'
+    assert card.comments[-1][1] == 'Standing: worker L1 -> L0 · a check failed.'
     fail_proof(card)  # Already at L0, so there is no new demotion to announce.
     assert len(card.comments) == 2
     assert complete(card, result='{"ok": false}') is None
@@ -148,35 +134,27 @@ def test_success_line_requires_matching_session_task_receipt(card, monkeypatch, 
     assert card.comments == [] and card.boards == []
 
 
-@pytest.mark.parametrize('location', ['connect', 'add_comment', 'close', 'ledger'])
+@pytest.mark.parametrize('location', ['dispatch', 'ledger'])
 def test_card_storage_errors_log_type_and_do_not_change_completion(card, monkeypatch, caplog, location):
     pass_http(card)
     def broken(*args, **kwargs):
         raise OSError('private-error-target-and-expected-text')
-    if location == 'connect':
-        monkeypatch.setattr(card.kbc, 'connect', broken)
-    elif location == 'add_comment':
-        monkeypatch.setattr(card.kb, 'add_comment', broken)
-    elif location == 'ledger':
+    if location == 'dispatch':
+        monkeypatch.setattr(card.ctx, 'dispatch_tool', broken)
+    else:
         service = card.ctx.hooks['post_tool_call'].__self__
         monkeypatch.setattr(service.ledger(), 'actor', broken)
-    else:
-        monkeypatch.setattr(card.kbc, 'connect', lambda **kw: types.SimpleNamespace(close=broken))
-        monkeypatch.setattr(card.kb, 'add_comment', lambda *a, **kw: 1)
     result = {'ok': True, 'task_id': 'task-a'}
     assert complete(card, result=result) is None
     assert result == {'ok': True, 'task_id': 'task-a'}
     assert 'card line (OSError)' in caplog.text
     assert 'private-error' not in caplog.text
-    if location == 'add_comment':
-        with pytest.raises(sqlite3.ProgrammingError):
-            card.connections[0].execute('SELECT 1')
 
 
 def test_demotion_comment_error_does_not_lose_recorded_proof(card, monkeypatch, caplog):
     def broken(*args, **kwargs):
         raise OSError('private-storage-error')
-    monkeypatch.setattr(card.kbc, 'connect', broken)
+    monkeypatch.setattr(card.ctx, 'dispatch_tool', broken)
     result = fail_proof(card)
     assert result['passed'] is False and result['level'] == 'L1'
     assert 'error' not in result
@@ -186,27 +164,62 @@ def test_demotion_comment_error_does_not_lose_recorded_proof(card, monkeypatch, 
 
 def test_ambiguous_committed_write_error_is_not_retried(card, monkeypatch):
     pass_http(card)
-    add_comment = card.kb.add_comment
+    dispatch = card.ctx.dispatch_tool
     def committed_then_error(*args, **kwargs):
-        add_comment(*args, **kwargs)
+        dispatch(*args, **kwargs)
         raise OSError('error-after-commit')
-    monkeypatch.setattr(card.kb, 'add_comment', committed_then_error)
+    monkeypatch.setattr(card.ctx, 'dispatch_tool', committed_then_error)
     complete(card)
     complete(card)
     assert len(card.comments) == 1
 
 
-def test_explicit_board_forwarded_unchanged_to_host_connection(card):
+def test_explicit_board_forwarded_unchanged_to_public_dispatch(card):
     pass_http(card)
     complete(card, args={'board': 'owner-selected-board'})
     assert card.boards == ['owner-selected-board']
+    assert card.calls[0][1] == {'task_id': 'task-a', 'body': card.comments[0][1],
+                              'board': 'owner-selected-board'}
+
+
+def test_public_tool_refusal_is_best_effort_without_retry_or_fallback(card, monkeypatch):
+    pass_http(card)
+    service = card.ctx.hooks['post_tool_call'].__self__
+    before = service.ledger().actor('worker')
+    attempts = []
+    def refused(name, arguments):
+        attempts.append((name, arguments))
+        return json.dumps({'error': 'approval required'})
+    monkeypatch.setattr(card.ctx, 'dispatch_tool', refused)
+    result = {'ok': True, 'task_id': 'task-a'}
+    assert complete(card, result=result) is None
+    complete(card, result=result)
+    assert len(attempts) == 1 and attempts[0][0] == 'kanban_comment'
+    assert result == {'ok': True, 'task_id': 'task-a'}
+    assert service.ledger().actor('worker') == before
+    assert service.before('kanban_complete', {}) is None
+    assert card.comments == []
+    assert fail_proof(card)['level'] == 'L1'  # Refusal cannot lose a demotion either.
+    assert len(attempts) == 2 and attempts[1][1]['board'] is None
+
+
+def test_dispatch_hook_reentry_does_not_duplicate_completion_line(card, monkeypatch):
+    pass_http(card)
+    dispatch = card.ctx.dispatch_tool
+    def reentrant(name, arguments):
+        card.ctx.hooks['post_tool_call'](name, arguments, '{"ok": true}')
+        complete(card)
+        return dispatch(name, arguments)
+    monkeypatch.setattr(card.ctx, 'dispatch_tool', reentrant)
+    complete(card)
+    assert len(card.calls) == 1
 
 
 def test_success_uses_last_passing_receipt_not_a_later_failed_target(card):
     pass_http(card)
     fail_proof(card)
     complete(card)
-    assert card.comments[-1][2] == ('Standing: worker L1 · check passed (http 127.0.0.1) · '
+    assert card.comments[-1][1] == ('Standing: worker L1 · check passed (http 127.0.0.1) · '
                                   '0 passes this window / 1 fails all time.')
     assert 'private' not in str(card.comments)
 
@@ -226,6 +239,6 @@ def test_non_http_receipt_never_discloses_target_or_expected_text(card, tmp_path
         {'kind': kind, 'target': target, 'expect': 'private-expected-text'})
     assert json.loads(response)['passed']
     complete(card)
-    assert f'check passed ({kind})' in card.comments[0][2]
+    assert f'check passed ({kind})' in card.comments[0][1]
     for private in ('private-artifact', 'private-expected', str(tmp_path), sys.executable):
         assert private not in str(card.comments)

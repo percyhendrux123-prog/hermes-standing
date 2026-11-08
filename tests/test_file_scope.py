@@ -102,6 +102,28 @@ def test_hermes_home_refused_except_configured_workspace(tmp_path, monkeypatch):
     assert opened == []
 
 
+@pytest.mark.parametrize('environment_home', [None, 'different-home'])
+def test_canonical_hermes_home_refused_even_when_environment_differs(tmp_path, monkeypatch, environment_home):
+    import hermes_constants
+    home = tmp_path / 'canonical-home'
+    workspace = home / 'workspace'
+    workspace.mkdir(parents=True)
+    artifact = workspace / 'artifact'
+    artifact.write_text('synthetic-marker')
+    private = home / 'state.db'
+    private.write_text('synthetic-marker')
+    if environment_home:
+        monkeypatch.setenv('HERMES_HOME', str(tmp_path / environment_home))
+    else:
+        monkeypatch.delenv('HERMES_HOME', raising=False)
+    monkeypatch.setattr(hermes_constants, 'get_hermes_home', lambda: home)
+    runner = ProofRunner(cwd=lambda: workspace, workspace=str(workspace), file_proof_roots=[str(home)])
+    assert runner.run('file', str(artifact), 'synthetic-marker').passed
+    opened = observe_opens(monkeypatch)
+    assert runner.run('file', str(private), 'synthetic-marker').result == 'unavailable'
+    assert opened == []
+
+
 @pytest.mark.parametrize('roots', ['relative', ['relative'], [None]])
 def test_invalid_file_proof_roots_rejected(roots):
     from standing.config import Settings

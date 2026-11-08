@@ -1,4 +1,5 @@
 """Deferred calls must enforce the same gates as direct calls."""
+from types import SimpleNamespace
 import json
 import sqlite3
 
@@ -16,7 +17,7 @@ def service(tmp_path):
     ledger = Ledger(lambda: sqlite3.connect(tmp_path / 'ledger.db'))
     return Standing(settings, lambda: ledger, ProofRunner(cwd=lambda: tmp_path, workspace=settings.workspace),
                     actor=lambda: 'worker', task=lambda: 'task-a', session=lambda: '',
-                    cwd=lambda: tmp_path)
+                    cwd=lambda: tmp_path, ctx=SimpleNamespace(dispatch_tool=lambda *a: None))
 
 
 def call(name, arguments=None):

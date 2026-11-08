@@ -50,7 +50,7 @@ def test_seeds_only_initialize_missing_rows_even_after_reload(tmp_path):
 
 def test_failure_demotes_immediately_and_resets_window(tmp_path):
     from standing.ledger import Ledger
-    ledger = Ledger(lambda: sqlite3.connect(tmp_path / 'db'), promote_after=2)
+    ledger = Ledger(lambda: sqlite3.connect(tmp_path / 'db'), promote_after=2, max_auto_level=2)
     ledger.seed({'worker': 2})
     ledger.proof('worker', 'task', 'file', 'a' * 64, True, 'The check passed.')
     ledger.proof('worker', 'task', 'http', 'b' * 64, False, 'The check failed.')
@@ -64,7 +64,7 @@ def test_failure_demotes_immediately_and_resets_window(tmp_path):
 
 def test_auto_level_never_reaches_l3_and_failure_floors_at_l0(tmp_path):
     from standing.ledger import Ledger
-    ledger = Ledger(lambda: sqlite3.connect(tmp_path / 'db'), promote_after=1)
+    ledger = Ledger(lambda: sqlite3.connect(tmp_path / 'db'), promote_after=1, max_auto_level=2)
     for _ in range(8):
         ledger.proof('worker', None, 'file', 'hash', True, 'Passed.')
     assert ledger.actor('worker')['level'] == 2
@@ -72,6 +72,18 @@ def test_auto_level_never_reaches_l3_and_failure_floors_at_l0(tmp_path):
         ledger.proof('worker', None, 'file', 'hash', False, 'Failed.')
     assert ledger.actor('worker')['level'] == 0
     assert ledger.actor('worker')['fails_total'] == 8
+
+
+def test_default_ledger_never_promotes_past_l1(tmp_path):
+    from standing.ledger import Ledger
+    ledger = Ledger(lambda: sqlite3.connect(tmp_path / 'db'), default_level=0, promote_after=1)
+    for _ in range(5):
+        ledger.proof('worker', 'task', 'file', 'hash', True, 'The check passed.')
+    assert ledger.actor('worker')['level'] == 1
+    # An existing owner-set level is not automatically lowered by the new ceiling.
+    ledger.set_level('worker', 2)
+    ledger.proof('worker', 'task', 'file', 'hash', True, 'The check passed.')
+    assert ledger.actor('worker')['level'] == 2
 
 
 def test_owner_set_resets_window_and_log_is_last_twenty(tmp_path):

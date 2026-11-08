@@ -29,7 +29,7 @@ def test_two_homes_share_worker_earn_loss_visibility_and_owner_control(tmp_path,
     worker_home.mkdir()
     governor_home.mkdir()
     shared = tmp_path / 'owner-records' / 'standing.db'
-    settings = {'workspace': str(workspace), 'db_path': str(shared), 'promote_after': 1}
+    settings = {'workspace': str(workspace), 'db_path': str(shared), 'promote_after': 1, 'max_auto_level': 'L2'}
     monkeypatch.setattr(plugin, 'agent_cwd', lambda: workspace)
     monkeypatch.setenv('HERMES_HOME', str(worker_home))
     worker = HomeContext(worker_home, 'worker', settings)

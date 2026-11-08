@@ -1,3 +1,4 @@
+from types import SimpleNamespace
 import json
 import sqlite3
 import pytest
@@ -13,7 +14,7 @@ def service(tmp_path):
     ledger = Ledger(lambda: sqlite3.connect(tmp_path / 'ledger.db'), promote_after=2)
     return Standing(settings, lambda: ledger, ProofRunner(cwd=lambda: tmp_path, workspace=settings.workspace),
                     actor=lambda: 'worker', task=lambda: 'task-a', session=lambda: '',
-                    cwd=lambda: tmp_path)
+                    cwd=lambda: tmp_path, ctx=SimpleNamespace(dispatch_tool=lambda *a: None))
 
 
 def test_completion_requires_real_proof_in_same_session_and_task(service, tmp_path):

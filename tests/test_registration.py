@@ -22,6 +22,10 @@ class Context:
         self.tmp_path = tmp_path
         self.settings = settings or {}
         self.tools, self.hooks, self.commands = {}, {}, {}
+        self.dispatched = []
+    def dispatch_tool(self, name, arguments):
+        self.dispatched.append((name, dict(arguments)))
+        return json.dumps({'ok': True})
     def get_config(self, key, default=None):
         return self.settings.get(key, default)
     def plugin_db(self):
@@ -71,6 +75,21 @@ def test_plugin_db_fallback_and_default_actor(tmp_path, monkeypatch):
     plugin.register(ctx)
     assert 'default | L1' in ctx.commands['standing']('')
     assert names and set(names) == {'hermes-standing'}
+
+
+def test_registered_default_proofs_stop_at_l1_until_owner_confirms(tmp_path, monkeypatch):
+    plugin = load_plugin()
+    monkeypatch.setattr(plugin, 'agent_cwd', lambda: tmp_path)
+    ctx = Context(tmp_path, {'seed': {'worker': 'L0'}, 'promote_after': 1, 'workspace': str(tmp_path)})
+    plugin.register(ctx)
+    (tmp_path / 'artifact').write_text('ready')
+    prove = ctx.tools['standing_proof']['handler']
+    for _ in range(5):
+        result = json.loads(prove({'kind': 'file', 'target': 'artifact', 'expect': 'ready'}))
+        assert result['passed'] is True and result['level'] == 'L1'
+    assert ctx.hooks['pre_tool_call']('terminal', {'command': 'pwd'})['action'] == 'approve'
+    assert 'now at L2' in ctx.commands['standing']('set worker L2', platform='cli')
+    assert json.loads(prove({'kind': 'file', 'target': 'artifact', 'expect': 'ready'}))['level'] == 'L2'
 
 
 def test_bad_configuration_keeps_completion_fail_closed(tmp_path):

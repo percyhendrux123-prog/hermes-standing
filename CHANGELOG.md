@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.1.1
+
+- Route task-card comments through public `ctx.dispatch_tool("kanban_comment", ...)`; core owns author identity, redaction, approvals and board resolution. No direct Kanban database access.
+- Use `hermes_constants.get_hermes_home()` for protected file-proof paths, including host-selected home overrides.
+- Default automatic promotion ceiling to L1. L2 automation requires explicit owner opt-in; existing owner settings and actor levels are not lowered.
+
 ## 0.1.0 (2026-11-06)
 
 First public release.

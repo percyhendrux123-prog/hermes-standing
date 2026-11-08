@@ -98,7 +98,7 @@ def register(ctx):
     runner = ProofRunner(agent_cwd, settings.command_allowlist, settings.proof_timeout,
                          workspace=settings.workspace, file_proof_roots=settings.file_proof_roots,
                          http_proof_targets=settings.http_proof_targets)
-    service = Standing(settings, ledger, runner, actor, task, session_id, agent_cwd, config_error)
+    service = Standing(settings, ledger, runner, actor, task, session_id, agent_cwd, config_error, ctx=ctx)
     # Apply insert-only starting levels at load. Failed storage must not disable the hooks.
     try:
         service.ledger().actor(actor())

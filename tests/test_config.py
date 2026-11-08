@@ -6,8 +6,9 @@ def test_config_defaults_and_customization(tmp_path):
     settings = Settings.parse({})
     assert settings.default_level == 1
     assert settings.promote_after == 10
-    assert settings.max_auto_level == 2
+    assert settings.max_auto_level == 1
     assert settings.require_proof_on_complete is True
+    assert Settings.parse({'max_auto_level': 'L2'}).max_auto_level == 2
     settings = Settings.parse({'seed': {'worker': 'L0'}, 'workspace': str(tmp_path),
                                'levels': {'L1': ['read']}, 'exempt_profiles': ['owner']})
     assert settings.seed == {'worker': 0}

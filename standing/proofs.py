@@ -154,7 +154,8 @@ class ProofRunner:
         # Reject the original spelling BEFORE resolution or content access.
         if credential_path(path) or not self.file_roots:
             raise ValueError('File proof target is not permitted.')
-        home = Path(os.environ.get('HERMES_HOME') or Path.home() / '.hermes').expanduser().absolute()
+        from hermes_constants import get_hermes_home
+        home = get_hermes_home().expanduser().absolute()
         resolved = path.resolve()
         for candidate, roots, protected_home, workspace in (
             (Path(os.path.abspath(path)), self.file_roots, home, self.workspace),
@@ -183,7 +184,7 @@ class ProofRunner:
             raise ValueError('HTTP proof target is not permitted.')
         # Check the owner scope BEFORE even constructing an opener. No ambient proxies or redirects.
         opener = build_opener(ProxyHandler({}), NoRedirect())
-        request = Request(target, headers={'User-Agent': 'hermes-standing/0.1.0'}, method='GET')
+        request = Request(target, headers={'User-Agent': 'hermes-standing/0.1.1'}, method='GET')
         try:
             response = opener.open(request, timeout=self.timeout)
         except HTTPError as error:

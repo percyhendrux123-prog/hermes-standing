@@ -1,5 +1,5 @@
 name: hermes-standing
-version: "0.1.0"
+version: "0.1.1"
 description: "Earned trust for Hermes workers: independent proof checks, a local record, and level-based approval gates."
 author: Percy Keith Stewart
 license: MIT
@@ -43,8 +43,8 @@ config_schema:
     description: "Passing checks in a clean window before one automatic level increase."
   max_auto_level:
     type: str
-    default: L2
-    description: "Automatic promotion ceiling: L0-L2; only the local owner command sets L3."
+    default: L1
+    description: "Automatic promotion ceiling: L0-L2. Above L1 requires explicit owner opt-in; only the local owner command sets L3."
   require_proof_on_complete:
     type: bool
     default: true

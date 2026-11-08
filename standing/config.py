@@ -30,7 +30,7 @@ class Settings:
     db_path: str = ''
     http_proof_targets: list = field(default_factory=list)
     promote_after: int = 10
-    max_auto_level: int = 2
+    max_auto_level: int = 1
     require_proof_on_complete: bool = True
     card_line: bool = True
     exempt_profiles: list = field(default_factory=list)
