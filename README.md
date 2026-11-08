@@ -2,7 +2,7 @@
 
 **Earned trust for Hermes workers.** A worker's record changes what needs your approval. A task cannot be marked done just because the worker says it is: Standing first needs a check it ran itself.
 
-Version 0.1.1. MIT. Requires Hermes >=0.22.5, plugin API 1. See [CHANGELOG.md](CHANGELOG.md), [SPEC.md](SPEC.md) and [SPEC-NOTES.md](SPEC-NOTES.md).
+Version 0.1.2. MIT. Requires Hermes >=0.22.5, plugin API 1. See [CHANGELOG.md](CHANGELOG.md), [SPEC.md](SPEC.md) and [SPEC-NOTES.md](SPEC-NOTES.md).
 
 Requires Python 3.10+ (Hermes's own runtime).
 
@@ -34,6 +34,15 @@ Deferred `tool_call` batches evaluate every inner call with the same policy and 
 L3 bypasses action-level Standing gates, **not** the separate proof-before-completion check. Disable that check or exempt an exact profile only as an explicit owner decision.
 
 ## Install (on the owner's Hermes machine)
+
+From the Hermes Marketplace (once listed):
+
+```bash
+hermes plugins install hermes-standing
+hermes plugins enable hermes-standing
+```
+
+Contributor workflow (local checkout):
 
 Review the code and configure the workspace/seeds before enabling. This plugin has no runtime Python dependencies.
 
@@ -141,6 +150,8 @@ Output is not returned: the tool returns a proof handle, `result`, `passed` (`tr
 Sandboxed workers: use http or allowlisted command proofs; file proofs run on the machine Standing runs on. HTTP endpoints must be reachable from that machine and included in `http_proof_targets`; command proofs run there too and require an exact owner-allowlisted read-only command. A path inside a worker's separate sandbox is not a host file proof.
 
 Each pass adds one to the current window. After `promote_after` passes with no failure in that window, the level rises by one, capped at `max_auto_level`, and the window resets. **The default ceiling is L1: passing proofs alone never grant L2 action permission.** The owner must confirm higher access explicitly with `/standing set <profile> L2`, or deliberately opt into automatic L2 promotion with `max_auto_level: L2` and reload. Existing actor levels and explicit owner settings are preserved, never silently lowered by this default change. A failure immediately lowers the level by one (floor L0), increments lifetime failures, and starts a new clean window. Owner level changes also reset the window. At the ceiling, passes continue accumulating without promoting further.
+
+A worker can always report on **its own** assigned card at any level: `kanban_block`, `kanban_comment`, `kanban_request_review` and `kanban_heartbeat` pass without a Standing prompt when the target task is the worker's `HERMES_KANBAN_TASK` (or no task_id is given). Without this an unattended worker could finish and never be able to say so. The same calls on another task's card, or with no assigned task, go through the normal level gate. `kanban_complete` stays proof-gated as below.
 
 Before `kanban_complete`, Standing needs at least one passing proof for the active **profile + HERMES_KANBAN_TASK + session**. An explicit completion task must match that assigned task. Missing task/session identity, another session's proof, a previous process's proof, or another task's proof does not qualify. Run a new check after plugin reload or session finalization/reset. Sessionless tool calls may earn ledger credit but do not authorize completion. Ordinary non-worker chats have no assigned task and need an exemption or owner-disabled proof policy to complete a board task.
 

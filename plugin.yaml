@@ -1,5 +1,5 @@
 name: hermes-standing
-version: "0.1.1"
+version: "0.1.2"
 description: "Earned trust for Hermes workers: independent proof checks, a local record, and level-based approval gates."
 author: Percy Keith Stewart
 license: MIT

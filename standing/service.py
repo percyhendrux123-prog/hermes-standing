@@ -5,7 +5,7 @@ import logging
 import threading
 from .card_line import receipt_label
 from .config import level, profile
-from .policy import classify, local_write, needs_approval
+from .policy import OWN_CARD_TOOLS, classify, local_write, needs_approval
 
 logger = logging.getLogger('hermes-standing')
 MISSING = ('Standing needs a passing check before this task can be marked done. '
@@ -101,6 +101,14 @@ class Standing:
                 return None
             if tool_name == 'standing_proof':
                 return None  # Read-only proof path is available at all levels to earn standing.
+            if tool_name in OWN_CARD_TOOLS and not complete:
+                # A worker may always report on its OWN assigned card (block, comment, review,
+                # heartbeat) at any level: otherwise an unattended worker can finish and never
+                # say so. Another task's card, or no assigned task, falls through to the level gate.
+                own = str(self.task_context() or '').strip()
+                target = str(args.get('task_id') or own).strip()
+                if own and target == own:
+                    return None
             if protected:
                 who, session, task = self.identity(session_id)
                 target_task = str(args.get('task_id') or task).strip()

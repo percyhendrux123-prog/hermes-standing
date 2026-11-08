@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.1.2
+
+- A worker can always report on its own assigned card (`kanban_block`, `kanban_comment`, `kanban_request_review`, `kanban_heartbeat`) at any level. Previously these were classed as board writes, so an unattended worker at L1/L2 could finish work and be unable to report it. Another task's card still goes through the level gate; `kanban_complete` stays proof-gated.
+- README: catalog install path first; the absolute-checkout install is labelled as the contributor workflow.
+
 ## 0.1.1
 
 - Route task-card comments through public `ctx.dispatch_tool("kanban_comment", ...)`; core owns author identity, redaction, approvals and board resolution. No direct Kanban database access.

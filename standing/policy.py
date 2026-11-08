@@ -16,6 +16,8 @@ READ_TOOLS = {'read_file', 'search_files', 'web_search', 'web_extract', 'vision_
               'skills_list', 'skill_view', 'tool_describe', 'tool_search', 'hermes_tool_search',
               'kanban_show', 'kanban_list', 'kanban_attachments', 'session_search'}
 WRITE_TOOLS = {'write_file', 'patch', 'apply_patch'}
+# Lifecycle reports a worker makes about its own assigned card (see Standing.before).
+OWN_CARD_TOOLS = {'kanban_block', 'kanban_comment', 'kanban_request_review', 'kanban_heartbeat'}
 # Deliberately own small table, not an import or wholesale copy of Axioma's implementation.
 RULES = {
     'send': ['*send_email*', '*send_message*', '*create_post*', '*post_message*', '*post_tweet*', '*publish*'],
