@@ -4,6 +4,7 @@
 
 - Patch-mode (V4A) edits inside the configured workspace now count as local writes. Before this, every patch-mode call was treated as non-local, so a worker at L1 or L2 was stopped for approval on edits to its own workspace. Standing reads the file headers in the patch payload, using the same line shapes Hermes core accepts; every named file and move destination must resolve inside the workspace, and a payload with no readable header still requests approval.
 - Deleting or moving a file through a patch is classed as scrub, including loosely spaced headers and `Move File`, which were previously missed.
+- A path Standing cannot resolve is never local and no longer raises into the hook's error path.
 - README: "Works with" section linking the Deploy Axiom operator-layer plugins.
 
 ## 0.1.2

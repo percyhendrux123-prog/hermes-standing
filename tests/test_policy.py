@@ -160,3 +160,49 @@ def test_scrub_marker_inside_added_content_is_not_a_delete(tmp_path):
     from standing.policy import classify
     args = {'mode': 'patch', 'patch': '*** Begin Patch\n*** Add File: notes.md\n+*** Delete File: x\n*** End Patch'}
     assert classify('patch', args) == {'write'}
+
+
+@pytest.mark.parametrize('header', [
+    '*** Delete\rFile: old.py', '*** Move\rFile: old.py -> new.py', '***\rDelete File:\rold.py',
+    '*** Delete File: old.py\r', '*** Move  File:old.py->new.py',
+])
+def test_carriage_return_inside_a_header_is_still_scrub(tmp_path, header):
+    """Core's header regex accepts a bare CR as whitespace; Standing must see the same delete/move."""
+    from standing.policy import classify, local_write, needs_approval
+    args = {'mode': 'patch', 'patch': f'*** Begin Patch\n{header}\n*** End Patch'}
+    categories = classify('patch', args)
+    assert 'scrub' in categories
+    for level in (0, 1, 2):
+        assert needs_approval(level, categories, local_write(args, tmp_path, tmp_path))
+
+
+@pytest.mark.parametrize('bad', ['~no_such_user_7fd182/ignored', 'a\x00b', '~'])
+def test_unresolvable_patch_target_is_never_local_and_never_raises(tmp_path, monkeypatch, bad):
+    from standing.policy import local_write
+    monkeypatch.setenv('HOME', str(tmp_path.parent / 'elsewhere'))
+    payload = f'*** Add File: {bad}\n*** Begin Patch\n*** Add File: /outside/new\n+x\n*** End Patch'
+    assert local_write({'mode': 'patch', 'patch': payload}, tmp_path, tmp_path) is False
+    assert local_write({'path': bad}, tmp_path, tmp_path) is False
+
+
+def test_resolution_error_is_not_local(tmp_path, monkeypatch):
+    from pathlib import Path
+    from standing.policy import local_write
+    def boom(self, *args, **kwargs):
+        raise RuntimeError('cannot expand')
+    root = str(tmp_path)
+    monkeypatch.setattr(Path, 'expanduser', boom)
+    assert local_write({'mode': 'patch', 'patch': V4A.format('a.py')}, root, root) is False
+    assert local_write({'path': 'a.py'}, root, root) is False
+
+
+def test_outside_symlink_pointing_inside_is_not_a_local_patch_target(tmp_path):
+    from standing.policy import local_write
+    workspace = tmp_path / 'workspace'
+    workspace.mkdir()
+    (workspace / 'real.py').write_text('x')
+    alias = tmp_path / 'alias.py'
+    alias.symlink_to(workspace / 'real.py')
+    for payload in (f'*** Delete File: {alias}', f'*** Move File: {alias} -> {workspace}/b.py', V4A.format(alias)):
+        assert not local_write({'mode': 'patch', 'patch': payload}, workspace, workspace)
+    assert local_write({'mode': 'patch', 'patch': V4A.format('real.py')}, workspace, workspace)

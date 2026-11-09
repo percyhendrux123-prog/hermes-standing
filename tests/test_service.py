@@ -133,3 +133,45 @@ def test_model_cannot_set_levels_and_unknown_command_context_refused(service):
     assert 'local' in service.command('set worker L3').lower()
     assert service.before('standing_set', {})['action'] == 'approve'
     assert 'local' in service.command('set worker L3', platform='cli', source=object()).lower()
+
+
+def at_level(service, level):
+    service.ledger().actor('worker')
+    db = service.ledger().connect()
+    try:
+        db.execute('UPDATE actors SET level = ? WHERE name = ?', (level, 'worker'))
+        db.commit()
+    finally:
+        db.close()
+    assert service.ledger().actor('worker')['level'] == level
+
+
+PATCH = '*** Begin Patch\n{}\n*** End Patch'
+
+
+@pytest.mark.parametrize('level', [1, 2])
+def test_final_hook_allows_patch_mode_edit_inside_workspace(service, level):
+    at_level(service, level)
+    args = {'mode': 'patch', 'patch': PATCH.format('*** Update File: src/app.py\n@@\n-old\n+new')}
+    assert service.before('patch', args, session_id='s1') is None
+
+
+@pytest.mark.parametrize('level', [0, 1, 2])
+@pytest.mark.parametrize('body', [
+    '*** Update File: /outside/app.py\n@@\n-old\n+new',
+    '*** Delete File: old.py', '*** Delete\rFile: old.py', '*** Move\rFile: old.py -> new.py',
+])
+def test_final_hook_gates_outside_and_delete_or_move_patches(service, level, body):
+    at_level(service, level)
+    result = service.before('patch', {'mode': 'patch', 'patch': PATCH.format(body)}, session_id='s1')
+    assert result and result['action'] == 'approve'
+
+
+@pytest.mark.parametrize('level', [0, 1, 2])
+def test_final_hook_gates_decoy_prefix_with_unresolvable_user(service, level):
+    """A path Standing cannot resolve must request approval, not fall into the open error path."""
+    at_level(service, level)
+    payload = ('*** Add File: ~A321_nonexistent_user_7fd182/ignored\n'
+               '*** Begin Patch\n*** Add File: /outside/new\n+x\n*** End Patch')
+    result = service.before('patch', {'mode': 'patch', 'patch': payload}, session_id='s1')
+    assert result and result['action'] == 'approve'

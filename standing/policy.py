@@ -16,11 +16,6 @@ READ_TOOLS = {'read_file', 'search_files', 'web_search', 'web_extract', 'vision_
               'skills_list', 'skill_view', 'tool_describe', 'tool_search', 'hermes_tool_search',
               'kanban_show', 'kanban_list', 'kanban_attachments', 'session_search'}
 WRITE_TOOLS = {'write_file', 'patch', 'apply_patch'}
-# Same line shapes Hermes core's V4A parser accepts (tools/patch_parser.py), so Standing reads
-# the targets the patch will really touch. Matched at line start, as core does.
-PATCH_TARGETS = re.compile(r'\*\*\*\s*(?:Update|Add|Delete)\s+File:\s*(.+)')
-PATCH_MOVE = re.compile(r'\*\*\*\s*Move\s+File:\s*(.+?)\s*->\s*(.+)')
-PATCH_REMOVES = re.compile(r'^\*\*\*\s*(?:Delete|Move)\s+File:', re.MULTILINE)
 # Lifecycle reports a worker makes about its own assigned card (see Standing.before).
 OWN_CARD_TOOLS = {'kanban_block', 'kanban_comment', 'kanban_request_review', 'kanban_heartbeat'}
 # Deliberately own small table, not an import or wholesale copy of Axioma's implementation.
@@ -32,6 +27,34 @@ RULES = {
     'scrub': ['*delete*', '*remove*', '*unlink*', '*rmdir*', '*move*', '*destroy*', '*scrub*'],
 }
 
+
+# Same line shapes Hermes core's V4A parser accepts (tools/patch_parser.py), so Standing reads
+# the targets the patch will really touch. Matched at line start, as core does. Core's ``\\s``
+# also accepts a bare carriage return inside a header, so nothing is stripped but a line-end CR.
+PATCH_WRITES = re.compile(r'\*\*\*\s*(?:Update|Add)\s+File:\s*(.+)')
+PATCH_DELETE = re.compile(r'\*\*\*\s*Delete\s+File:\s*(.+)')
+PATCH_MOVE = re.compile(r'\*\*\*\s*Move\s+File:\s*(.+?)\s*->\s*(.+)')
+
+
+def patch_ops(payload):
+    """(targets, removes) named by a V4A payload: every path, and whether any op deletes or moves.
+
+    Reads every line, not only those between Begin/End markers, so it can only see more
+    operations than core applies, never fewer."""
+    targets, removes = [], False
+    if not isinstance(payload, str):
+        return targets, removes
+    for line in payload.split('\n'):
+        line = line.removesuffix('\r')
+        move = PATCH_MOVE.match(line)
+        delete = None if move else PATCH_DELETE.match(line)
+        write = None if move or delete else PATCH_WRITES.match(line)
+        if move:
+            targets += [move.group(1).strip(), move.group(2).strip()]
+        elif delete or write:
+            targets.append((delete or write).group(1).strip())
+        removes = removes or bool(move or delete)
+    return targets, removes
 
 def classify(tool, args):
     tool = tool.lower()
@@ -68,7 +91,7 @@ def classify(tool, args):
             found.add('shell')
     elif tool in WRITE_TOOLS:
         found.add('write')
-        if PATCH_REMOVES.search(str(args.get('patch', '')).replace('\r', '')):
+        if patch_ops(args.get('patch'))[1]:
             found.add('scrub')  # Deleting or moving a file stays scrub at every level below L3.
     elif tool in READ_TOOLS or re.match(r'^(?:read|search|list|get)_', leaf):
         found.add('read')
@@ -77,44 +100,39 @@ def classify(tool, args):
     return found or {'unknown'}
 
 
-def patch_targets(payload):
-    """Every path a V4A patch payload names, or None when none can be read."""
-    if not isinstance(payload, str):
-        return None
-    targets = []
-    for line in payload.split('\n'):
-        line = line.removesuffix('\r')
-        move = PATCH_MOVE.match(line)
-        if move:
-            targets += [move.group(1).strip(), move.group(2).strip()]
-            continue
-        named = PATCH_TARGETS.match(line)
-        if named:
-            targets.append(named.group(1).strip())
-    return targets or None
-
-
-def inside(value, root, cwd):
-    if not isinstance(value, str) or not value or '\x00' in value:
-        return False
-    path = Path(value).expanduser()
-    if not path.is_absolute():
-        path = Path(cwd) / path
-    return path.resolve().is_relative_to(root)
+def inside(value, root, cwd, entry=False):
+    """True only when the path provably resolves inside root. Any doubt or error is False."""
+    try:
+        if not isinstance(value, str) or not value or '\x00' in value:
+            return False
+        path = Path(value).expanduser()
+        if not path.is_absolute():
+            path = Path(cwd) / path
+        if not path.resolve().is_relative_to(root):
+            return False
+        # A patch can delete or move the directory entry itself, so the entry (its resolved
+        # parent plus its own name) must also sit inside: an outside symlink that points in
+        # is not a local target.
+        return not entry or (path.parent.resolve() / path.name).is_relative_to(root)
+    except Exception:
+        return False  # Unknown users, loops, bad encodings: never local, never an error upstream.
 
 
 def local_write(args, workspace, cwd):
     if not workspace:
         return False
-    root = Path(workspace).expanduser().resolve()
+    try:
+        root = Path(workspace).expanduser().resolve()
+    except Exception:
+        return False
     if args.get('mode') == 'patch' or args.get('patch'):
         # Patch mode: the targets live in the payload, never in the optional path field.
         # Local only when it is a real patch-mode call and EVERY named file (and move
         # destination) resolves inside the workspace. Anything unreadable gates the call.
         if args.get('mode') != 'patch':
             return False
-        targets = patch_targets(args.get('patch'))
-        return bool(targets) and all(inside(target, root, cwd) for target in targets)
+        targets = patch_ops(args.get('patch'))[0]
+        return bool(targets) and all(inside(target, root, cwd, entry=True) for target in targets)
     return inside(args.get('path', args.get('file_path')), root, cwd)
 
 
