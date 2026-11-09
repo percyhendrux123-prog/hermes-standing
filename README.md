@@ -57,7 +57,7 @@ Then start a fresh session. Nothing in this repository auto-installs, deploys, o
 
 ### Which version you have
 
-The catalog pins one reviewed release. `hermes plugins info hermes-standing` shows it. On 0.1.2, every patch-mode (V4A) edit requests approval at L1 and L2, even inside the workspace; replace-mode `patch` and `write_file` are unaffected. 0.1.3 fixes this. Until your install shows 0.1.3, an owner who wants L2 workers to patch without a prompt can add `write` to the L2 level list in the plugin settings, which also allows non-local writes at L2.
+The catalog pins one reviewed release. `hermes plugins info hermes-standing` shows it. On 0.1.2, every patch-mode (V4A) edit requests approval at L1 and L2, even inside the workspace; replace-mode `patch` and `write_file` are unaffected. 0.1.3 fixes this. Until your install shows 0.1.3, an owner who wants L2 workers to patch without a prompt can add `write` to `levels.L2` in the plugin settings. That also allows non-local writes at L2, so remove it after updating.
 
 ## Configuration
 
