@@ -184,7 +184,7 @@ class ProofRunner:
             raise ValueError('HTTP proof target is not permitted.')
         # Check the owner scope BEFORE even constructing an opener. No ambient proxies or redirects.
         opener = build_opener(ProxyHandler({}), NoRedirect())
-        request = Request(target, headers={'User-Agent': 'hermes-standing/0.1.2'}, method='GET')
+        request = Request(target, headers={'User-Agent': 'hermes-standing/0.1.3'}, method='GET')
         try:
             response = opener.open(request, timeout=self.timeout)
         except HTTPError as error:

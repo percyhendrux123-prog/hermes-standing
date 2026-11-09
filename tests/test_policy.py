@@ -84,3 +84,79 @@ def test_multiple_categories_and_configured_map():
 def test_compound_and_administrative_categories(tool, args, category):
     from standing.policy import classify
     assert category in classify(tool, args)
+
+
+V4A = '*** Begin Patch\n*** Update File: {}\n@@\n-old\n+new\n*** End Patch'
+
+
+def test_patch_mode_inside_workspace_is_a_local_write(tmp_path):
+    """0.1.3: a worker at L1/L2 editing its own workspace in patch mode is not stopped."""
+    from standing.policy import classify, local_write, needs_approval
+    for target in ('src/app.py', str(tmp_path / 'src' / 'app.py')):
+        args = {'mode': 'patch', 'patch': V4A.format(target)}
+        local = local_write(args, tmp_path, tmp_path)
+        assert local
+        for level in (1, 2):
+            assert not needs_approval(level, classify('patch', args), local)
+        assert needs_approval(0, classify('patch', args), local)
+
+
+def test_patch_mode_multi_file_needs_every_target_inside(tmp_path):
+    from standing.policy import local_write
+    inside = ('*** Begin Patch\n*** Update File: a.py\n@@\n-x\n+y\n'
+              '*** Add File: docs/new.md\n+hello\n*** End Patch')
+    assert local_write({'mode': 'patch', 'patch': inside}, tmp_path, tmp_path)
+    mixed = inside.replace('docs/new.md', '/outside/new.md')
+    assert not local_write({'mode': 'patch', 'patch': mixed}, tmp_path, tmp_path)
+    assert not local_write({'mode': 'patch', 'patch': inside.replace('a.py', '../a.py')}, tmp_path, tmp_path)
+
+
+@pytest.mark.parametrize('payload', [
+    None, '', 7, '*** Begin Patch\n*** End Patch', 'no headers at all',
+    '*** Begin Patch\n*** Update File: \n*** End Patch',
+])
+def test_patch_mode_without_readable_targets_is_gated(tmp_path, payload):
+    from standing.policy import local_write
+    assert not local_write({'mode': 'patch', 'path': 'ok.txt', 'patch': payload}, tmp_path, tmp_path)
+
+
+def test_patch_payload_outside_patch_mode_is_gated(tmp_path):
+    from standing.policy import local_write
+    assert not local_write({'path': 'ok.txt', 'patch': V4A.format('ok.txt')}, tmp_path, tmp_path)
+    assert not local_write({'mode': 'replace', 'path': 'ok.txt', 'patch': V4A.format('ok.txt')}, tmp_path, tmp_path)
+
+
+def test_patch_mode_symlink_escape_and_loose_spacing(tmp_path):
+    from standing.policy import local_write
+    workspace = tmp_path / 'workspace'
+    workspace.mkdir()
+    outside = tmp_path / 'outside'
+    outside.mkdir()
+    (workspace / 'link').symlink_to(outside, target_is_directory=True)
+    assert not local_write({'mode': 'patch', 'patch': V4A.format('link/file')}, workspace, workspace)
+    # Core tolerates loose spacing and CRLF in headers; Standing must read the same targets.
+    loose = '***Update  File:   /outside/file\r\n@@\r\n-old\r\n+new'
+    assert not local_write({'mode': 'patch', 'patch': loose}, workspace, workspace)
+    assert local_write({'mode': 'patch', 'patch': loose.replace('/outside/file', 'file')}, workspace, workspace)
+
+
+@pytest.mark.parametrize('header', [
+    '*** Delete File: old.py', '***Delete  File: old.py', '*** Move File: a.py -> b.py',
+    '*** Move File: a.py -> /outside/b.py',
+])
+def test_patch_delete_or_move_stays_scrub_even_inside_workspace(tmp_path, header):
+    from standing.policy import classify, local_write, needs_approval
+    args = {'mode': 'patch', 'patch': f'*** Begin Patch\n{header}\n*** End Patch'}
+    categories = classify('patch', args)
+    assert 'scrub' in categories
+    local = local_write(args, tmp_path, tmp_path)
+    for level in (0, 1, 2):
+        assert needs_approval(level, categories, local)
+    if '/outside/' in header:
+        assert not local
+
+
+def test_scrub_marker_inside_added_content_is_not_a_delete(tmp_path):
+    from standing.policy import classify
+    args = {'mode': 'patch', 'patch': '*** Begin Patch\n*** Add File: notes.md\n+*** Delete File: x\n*** End Patch'}
+    assert classify('patch', args) == {'write'}

@@ -8,7 +8,7 @@ from tests.test_registration import Context, load_plugin
 def test_manifest_declares_all_settings_and_actual_hooks(tmp_path):
     text = (Path(__file__).resolve().parents[1] / 'plugin.yaml').read_text()
     assert 'name: hermes-standing\n' in text
-    assert 'version: "0.1.2"' in text
+    assert 'version: "0.1.3"' in text
     assert 'requires_hermes: ">=0.22.5"' in text
     assert 'api_version: 1' in text
     assert 'provides_tools: [standing_proof]' in text
@@ -37,4 +37,4 @@ def test_manifest_readme_and_runtime_promotion_defaults_match():
     assert re.search(r'  max_auto_level:\n    type: str\n    default: L1\n', manifest)
     assert 'max_auto_level: L1' in readme
     assert '| `max_auto_level` | `L1` |' in readme
-    assert 'Version 0.1.2.' in readme
+    assert 'Version 0.1.3.' in readme

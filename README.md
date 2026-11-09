@@ -2,7 +2,7 @@
 
 **Earned trust for Hermes workers.** A worker's record changes what needs your approval. A task cannot be marked done just because the worker says it is: Standing first needs a check it ran itself.
 
-Version 0.1.2. MIT. Requires Hermes >=0.22.5, plugin API 1. See [CHANGELOG.md](CHANGELOG.md), [SPEC.md](SPEC.md) and [SPEC-NOTES.md](SPEC-NOTES.md).
+Version 0.1.3. MIT. Requires Hermes >=0.22.5, plugin API 1. See [CHANGELOG.md](CHANGELOG.md), [SPEC.md](SPEC.md) and [SPEC-NOTES.md](SPEC-NOTES.md).
 
 Requires Python 3.10+ (Hermes's own runtime).
 
@@ -25,7 +25,7 @@ Spending and deletion/move actions request approval below L3. Shell/code and unk
 
 For `cronjob` / `cronjob_manage`, action names are classified explicitly (case/outer whitespace ignored): `list/get/show/status` are read; `create/add/update/edit/resume/enable/run/trigger` are spin; `remove/delete/clear/pause/stop/disable/cancel` are scrub. Pausing/stopping/disabling/cancelling disrupts scheduled work, so it deliberately needs scrub approval below L3. Missing or unrecognized actions are unknown, never assumed spin. This classifier vocabulary does not claim every alias exists in every Hermes version.
 
-Local writes mean `write_file` and single-file `patch` calls with a recognized path. Relative paths use the session's working folder, not the gateway's process folder. Resolved paths, including symlinks, must stay inside the configured workspace. Bulk patches request approval because their actual targets live inside a separate patch payload. `terminal` and `execute_code` calls use the `shell` category when no scrub/send/spin rule matches, including pipes, substitutions and scripts (even `pwd` is a shell call). Recognized scrub/send/spin categories remain combined and take precedence. L1 requests approval for shells; L2 allows them, but still requests approval for recognized scrub and spend. This is earned permission, not proof arbitrary code is read-only/local, and not a shell sandbox.
+Local writes mean `write_file` and `patch` calls whose targets Standing can read. For a replace-mode `patch` that is the `path` field. For a patch-mode (V4A) call, Standing reads the file headers in the patch payload itself and ignores the `path` field: the call is local only when every named file, and every move destination, resolves inside the workspace. A payload with no readable file header requests approval. Deleting or moving a file through a patch is still a scrub action and requests approval below L3. Relative paths use the session's working folder, not the gateway's process folder. Resolved paths, including symlinks, must stay inside the configured workspace. `terminal` and `execute_code` calls use the `shell` category when no scrub/send/spin rule matches, including pipes, substitutions and scripts (even `pwd` is a shell call). Recognized scrub/send/spin categories remain combined and take precedence. L1 requests approval for shells; L2 allows them, but still requests approval for recognized scrub and spend. This is earned permission, not proof arbitrary code is read-only/local, and not a shell sandbox.
 
 Deferred `tool_call` batches evaluate every inner call with the same policy and completion-proof check as direct calls, returning the strictest directive (`block` > `approve` > none). Nested wrappers are unwrapped iteratively. Malformed/empty batches request approval; if any inner name is `kanban_complete`, a malformed batch blocks even with a previous proof. `tool_describe` and `tool_search` remain read tools.
 
@@ -229,6 +229,17 @@ PYTHONDONTWRITEBYTECODE=1 .venv/bin/python -m pytest -q -W error --tb=short -p n
 The test suite uses real temporary files, SQLite, loopback HTTP, and short allowlisted commands. Hermes registration/identity APIs are stubbed. This is **not** proof that a native approval prompt appeared or that a model-driven board task completed.
 
 **Live run (2026-11-06, real gateway, model-driven worker on a dispatched Kanban task):** completion without a proof was blocked with the message above; an HTTP proof passed and completion went through with a Standing card line; a deliberately false proof failed and lowered the worker one level; `/standing` showed the change. A later live run confirmed an unavailable proof is logged without demotion. On the host: `hermes plugins validate` passed, `hermes plugins doctor` OK (1 tool, 5 hooks), and the suite passes under `-W error` on Python 3.14.
+
+## Works with
+
+Standing is one part of an operator layer for Hermes Agent, built by Deploy Axiom. Each plugin installs on its own and none requires another. Together they cover a working agent from first reply to finished task:
+
+- **Standing** (this plugin): earned trust. A worker's proven record sets what still needs your approval, and a task is not done until a check passes.
+- [Axioma](https://github.com/percyhendrux123-prog/hermes-axioma): marks the few phrases in a reply that should change your decision, and shows an advisory card before a risky call.
+- [Tripwire](https://github.com/percyhendrux123-prog/hermes-tripwire): logs every refusal, so you know when an agent was told no.
+- [Handydandy](https://github.com/percyhendrux123-prog/hermes-handydandy): session-size notices and structured handoffs, so long sessions stop carrying the whole chat.
+- [Gatekeeper](https://github.com/percyhendrux123-prog/hermes-gatekeeper): owner-configured policy checks on recognized outbound messaging calls.
+- [Chiron](https://github.com/percyhendrux123-prog/hermes-chiron): reads your level per topic from your own words and adjusts how the agent talks to you.
 
 ## Not in v0.1
 
