@@ -1,5 +1,7 @@
 # Standing
 
+> **Part of the seat**, a collection of Hermes plugins that work together: watch, decide, act, prove, hand off. This one covers **prove**: a task is done when a check passes. [See the whole collection](https://github.com/percyhendrux123-prog#the-seat-a-collection-of-hermes-plugins).
+
 **Earned trust for Hermes workers.** A worker's record changes what needs your approval. A task cannot be marked done just because the worker says it is: Standing first needs a check it ran itself.
 
 Version 0.1.3. MIT. Requires Hermes >=0.22.5, plugin API 1. See [CHANGELOG.md](CHANGELOG.md), [SPEC.md](SPEC.md) and [SPEC-NOTES.md](SPEC-NOTES.md).
