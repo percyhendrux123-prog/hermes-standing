@@ -1,0 +1,16 @@
+{
+  "name": "deploy-axiom-standing",
+  "owner": {
+    "name": "Deploy Axiom"
+  },
+  "metadata": {
+    "description": "Standing for Claude Code, from Deploy Axiom."
+  },
+  "plugins": [
+    {
+      "name": "axiom-standing",
+      "source": "./claude-plugin/standing",
+      "description": "Earned trust for agent workers: independent proof checks, a local record, and level-based approval gates."
+    }
+  ]
+}

@@ -236,6 +236,15 @@ The test suite uses real temporary files, SQLite, loopback HTTP, and short allow
 
 **Live run (2026-11-06, real gateway, model-driven worker on a dispatched Kanban task):** completion without a proof was blocked with the message above; an HTTP proof passed and completion went through with a Standing card line; a deliberately false proof failed and lowered the worker one level; `/standing` showed the change. A later live run confirmed an unavailable proof is logged without demotion. On the host: `hermes plugins validate` passed, `hermes plugins doctor` OK (1 tool, 5 hooks), and the suite passes under `-W error` on Python 3.14.
 
+## Also for Claude Code
+
+The same idea ships as a Claude Code plugin in [`claude-plugin/standing`](claude-plugin/standing), a mod that gates tool calls by level and keeps the same kind of local record. It can only add approvals, never grant one, and a level can be set only by the owner's own keystroke at the Claude Code prompt. It refuses `TaskUpdate` completed until a check Standing ran itself has passed for that task id. It is separate from the Hermes plugin above and needs neither Hermes nor Python. The plugin README lists what Claude Code cannot do that Hermes does (Known gaps).
+
+```
+claude plugin marketplace add percyhendrux123-prog/hermes-standing
+claude plugin install axiom-standing@deploy-axiom-standing
+```
+
 ## Works with
 
 Standing is one part of an operator layer for Hermes Agent, built by Deploy Axiom. Each plugin installs on its own and none requires another. Together they cover a working agent from first reply to finished task:
