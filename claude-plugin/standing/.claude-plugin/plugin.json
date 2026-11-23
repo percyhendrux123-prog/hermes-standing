@@ -1,0 +1,111 @@
+{
+  "name": "axiom-standing",
+  "displayName": "Standing",
+  "version": "0.1.0",
+  "description": "Earned trust for agent workers: independent proof checks, a local record, and level-based approval gates. A task is not done until a check passes. Levels only add approvals; L3 is set by the owner alone.",
+  "author": {
+    "name": "Deploy Axiom"
+  },
+  "homepage": "https://github.com/percyhendrux123-prog/hermes-standing",
+  "repository": "https://github.com/percyhendrux123-prog/hermes-standing",
+  "license": "MIT",
+  "keywords": [
+    "trust",
+    "permissions",
+    "approvals",
+    "proof",
+    "subagents",
+    "mod"
+  ],
+  "icon": "./.claude-plugin/icon.png",
+  "userConfig": {
+    "default_level": {
+      "type": "string",
+      "title": "Starting level",
+      "description": "Level for an actor with no record yet: L0 read, L1 draft, L2 act. L3 can only be set by you with /standing set.",
+      "options": ["L0", "L1", "L2"],
+      "default": "L1"
+    },
+    "max_auto_level": {
+      "type": "string",
+      "title": "Highest level a record can earn",
+      "description": "Passing checks never promote above this. L1 by default, so proofs alone never grant L2.",
+      "options": ["L0", "L1", "L2"],
+      "default": "L1"
+    },
+    "promote_after": {
+      "type": "number",
+      "title": "Passes to promote",
+      "description": "Passing checks in a clean window before one automatic promotion.",
+      "default": 10,
+      "min": 1
+    },
+    "workspace": {
+      "type": "directory",
+      "title": "Workspace folder",
+      "description": "L1 and L2 may edit files inside this folder without an extra prompt. Empty means every edit asks."
+    },
+    "seed": {
+      "type": "string",
+      "title": "Starting levels by actor",
+      "description": "Entries like main=L2 or general-purpose=L1. Used only when an actor is first recorded. Actors are main, or the subagent type.",
+      "multiple": true,
+      "default": []
+    },
+    "require_proof_on_complete": {
+      "type": "boolean",
+      "title": "Require a passing check before a task is completed",
+      "description": "Refuses TaskUpdate status completed until standing_proof has passed for that task id in this session.",
+      "default": true
+    },
+    "exempt_actors": {
+      "type": "string",
+      "title": "Actors exempt from the completion check",
+      "description": "Exact actor names. Exempts only the proof-before-done rule, not the level gate.",
+      "multiple": true,
+      "default": []
+    },
+    "file_proof_roots": {
+      "type": "string",
+      "title": "Folders file checks may read",
+      "description": "Absolute folders or files. Empty uses the workspace; with neither, file checks are refused.",
+      "multiple": true,
+      "default": []
+    },
+    "http_proof_targets": {
+      "type": "string",
+      "title": "URLs HTTP checks may call",
+      "description": "Absolute http(s) URLs. A path ending in / allows that subtree; otherwise only the exact endpoint. Empty disables HTTP checks.",
+      "multiple": true,
+      "default": []
+    },
+    "command_allowlist": {
+      "type": "string",
+      "title": "Read-only commands command checks may run",
+      "description": "Exact commands such as git rev-parse HEAD. Words split on spaces; no quotes or shell characters. You must be sure each one only reads.",
+      "multiple": true,
+      "default": []
+    },
+    "proof_timeout": {
+      "type": "number",
+      "title": "Check timeout (seconds)",
+      "description": "1 to 20.",
+      "default": 10,
+      "min": 1,
+      "max": 20
+    },
+    "levels": {
+      "type": "string",
+      "title": "Level map (advanced)",
+      "description": "Entries like L2=read,local_write,shell,send,spin,unknown. Categories: read, local_write, shell, send, spend, spin, scrub, write, unknown. Leave empty for the defaults.",
+      "multiple": true,
+      "default": []
+    },
+    "transcript_line": {
+      "type": "boolean",
+      "title": "Show a score line in the transcript",
+      "description": "A dim line after a completion that a check backed, and after a demotion. Claude does not read it.",
+      "default": true
+    }
+  }
+}

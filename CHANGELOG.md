@@ -1,5 +1,9 @@
 # Changelog
 
+## Claude Code plugin 0.1.0
+
+- New: `claude-plugin/standing` (`axiom-standing`), Standing as a Claude Code mod. Level gate on tool calls (asks, never allows), proof-before-done on `TaskUpdate`, `standing_proof`, the `/standing` record, and an owner-keystroke-only `/standing set`. Root `.claude-plugin/marketplace.json` for `claude plugin marketplace add`. The Hermes plugin is unchanged.
+
 ## 0.1.3
 
 - Patch-mode (V4A) edits inside the configured workspace now count as local writes. Before this, every patch-mode call was treated as non-local, so a worker at L1 or L2 was stopped for approval on edits to its own workspace. Standing reads the file headers in the patch payload, using the same line shapes Hermes core accepts; every named file and move destination must resolve inside the workspace, and a payload with no readable header still requests approval.
